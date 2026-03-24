@@ -1,5 +1,5 @@
 import os
-import sqlite3
+import psycopg
 import logging
 from datetime import datetime
 
