@@ -1,8 +1,8 @@
 import os
-import psycopg
 import logging
 from datetime import datetime
 
+import psycopg
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", "10000"))
 RENDER_EXTERNAL_URL = "https://mygym-amow.onrender.com"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not TOKEN:
     raise ValueError("Не найдена переменная BOT_TOKEN")
@@ -29,7 +30,8 @@ if not TOKEN:
 if not RENDER_EXTERNAL_URL:
     raise ValueError("Не найдена переменная RENDER_EXTERNAL_URL")
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("Не найдена переменная DATABASE_URL")
 
 MAIN_MENU, SELECT_DAY, SELECT_EXERCISE, ENTER_WEIGHT, TRACK_DAY, TRACK_EXERCISE = range(6)
 
@@ -73,82 +75,78 @@ WORKOUTS = {
 }
 
 
+def get_connection():
+    return psycopg.connect(DATABASE_URL)
+
+
 def init_db():
-    conn = psycopg.connect(DATABASE_URL)
-    cur = conn.cursor()
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS workout_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            username TEXT,
-            day_name TEXT NOT NULL,
-            exercise_name TEXT NOT NULL,
-            weight TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )
-    """)
-
-    conn.commit()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS workout_logs (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    username TEXT,
+                    day_name TEXT NOT NULL,
+                    exercise_name TEXT NOT NULL,
+                    weight TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL
+                )
+            """)
+        conn.commit()
 
 
 def save_weight(user_id: int, username: str, day_name: str, exercise_name: str, weight: str):
-    conn = psycopg.connect(DATABASE_URL)
-    cur = conn.cursor()
-
-    cur.execute("""
-        INSERT INTO workout_logs (user_id, username, day_name, exercise_name, weight, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        user_id,
-        username,
-        day_name,
-        exercise_name,
-        weight,
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ))
-
-    conn.commit()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO workout_logs (user_id, username, day_name, exercise_name, weight, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                user_id,
+                username,
+                day_name,
+                exercise_name,
+                weight,
+                datetime.now()
+            ))
+        conn.commit()
 
 
 def get_last_weights_for_day(user_id: int, day_name: str):
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT exercise_name, weight, created_at
-        FROM workout_logs
-        WHERE user_id = ? AND day_name = ?
-        ORDER BY id DESC
-    """, (user_id, day_name))
-
-    rows = cur.fetchall()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT exercise_name, weight, created_at
+                FROM workout_logs
+                WHERE user_id = %s AND day_name = %s
+                ORDER BY id DESC
+            """, (user_id, day_name))
+            rows = cur.fetchall()
 
     latest = {}
     for exercise_name, weight, created_at in rows:
         if exercise_name not in latest:
-            latest[exercise_name] = (weight, created_at)
+            latest[exercise_name] = (weight, created_at.strftime("%Y-%m-%d %H:%M:%S"))
 
     return latest
 
 
 def get_history_for_exercise(user_id: int, day_name: str, exercise_name: str):
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT weight, created_at
+                FROM workout_logs
+                WHERE user_id = %s AND day_name = %s AND exercise_name = %s
+                ORDER BY id DESC
+            """, (user_id, day_name, exercise_name))
+            rows = cur.fetchall()
 
-    cur.execute("""
-        SELECT weight, created_at
-        FROM workout_logs
-        WHERE user_id = ? AND day_name = ? AND exercise_name = ?
-        ORDER BY id DESC
-    """, (user_id, day_name, exercise_name))
-
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+    formatted_rows = []
+    for weight, created_at in rows:
+        formatted_rows.append((weight, created_at.strftime("%Y-%m-%d %H:%M:%S")))
+    return formatted_rows
 
 
 def get_main_menu_keyboard():
