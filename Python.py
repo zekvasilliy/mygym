@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", "10000"))
-RENDER_EXTERNAL_URL = "https://workout-bot-sa2d.onrender.com"
+RENDER_EXTERNAL_URL = "https://mygym-amow.onrender.com"
 
 if not TOKEN:
     raise ValueError("Не найдена переменная BOT_TOKEN")
