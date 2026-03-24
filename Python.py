@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TOKEN = os.getenv("8701716618:AAFgWkQhqgnhV8xH1YfgMk0Jyw6d33co0iU")
+TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", "10000"))
 RENDER_EXTERNAL_URL = "https://workout-bot-sa2d.onrender.com"
 
