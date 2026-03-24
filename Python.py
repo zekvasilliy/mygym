@@ -74,7 +74,7 @@ WORKOUTS = {
 
 
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = psycopg.connect(DATABASE_URL)
     cur = conn.cursor()
 
     cur.execute("""
