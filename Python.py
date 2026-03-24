@@ -29,7 +29,7 @@ if not TOKEN:
 if not RENDER_EXTERNAL_URL:
     raise ValueError("Не найдена переменная RENDER_EXTERNAL_URL")
 
-DB_NAME = "workout_bot.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 MAIN_MENU, SELECT_DAY, SELECT_EXERCISE, ENTER_WEIGHT, TRACK_DAY, TRACK_EXERCISE = range(6)
 
