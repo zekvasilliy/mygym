@@ -152,7 +152,6 @@ def get_main_menu_keyboard():
         keyboard,
         resize_keyboard=True,
         one_time_keyboard=False,
-        is_persistent=True
     )
 
 
