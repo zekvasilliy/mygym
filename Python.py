@@ -1,4 +1,4 @@
-import os
+ import os
 import logging
 from datetime import datetime
 
@@ -14,21 +14,18 @@ from telegram.ext import (
 )
 
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", "10000"))
-RENDER_EXTERNAL_URL = "https://mygym-amow.onrender.com"
 DATABASE_URL = os.getenv("DATABASE_URL")
+RENDER_EXTERNAL_URL = "https://mygym-amow.onrender.com"
 
 if not TOKEN:
     raise ValueError("Не найдена переменная BOT_TOKEN")
-
-if not RENDER_EXTERNAL_URL:
-    raise ValueError("Не найдена переменная RENDER_EXTERNAL_URL")
 
 if not DATABASE_URL:
     raise ValueError("Не найдена переменная DATABASE_URL")
@@ -128,7 +125,6 @@ def get_last_weights_for_day(user_id: int, day_name: str):
     for exercise_name, weight, created_at in rows:
         if exercise_name not in latest:
             latest[exercise_name] = (weight, created_at.strftime("%Y-%m-%d %H:%M:%S"))
-
     return latest
 
 
@@ -143,90 +139,156 @@ def get_history_for_exercise(user_id: int, day_name: str, exercise_name: str):
             """, (user_id, day_name, exercise_name))
             rows = cur.fetchall()
 
-    formatted_rows = []
-    for weight, created_at in rows:
-        formatted_rows.append((weight, created_at.strftime("%Y-%m-%d %H:%M:%S")))
-    return formatted_rows
+    return [(weight, created_at.strftime("%Y-%m-%d %H:%M:%S")) for weight, created_at in rows]
 
 
 def get_main_menu_keyboard():
     keyboard = [
+        ["Start"],
         ["Старт тренировки", "Отслежение весов"],
         ["Помощь", "Отмена"],
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        is_persistent=True
+    )
 
 
 def get_days_keyboard():
     keyboard = [
+        ["Start"],
         ["Грудь - Трицепс"],
         ["Спина - Бицепс"],
         ["Плечи - Ноги"],
         ["Назад", "Отмена"],
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        is_persistent=True
+    )
 
 
 def get_exercises_keyboard(day_name: str):
-    exercises = WORKOUTS[day_name]
-    keyboard = [[exercise] for exercise in exercises]
+    keyboard = [["Start"]]
+    keyboard += [[exercise] for exercise in WORKOUTS[day_name]]
     keyboard.append(["Назад", "Отмена"])
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        is_persistent=True
+    )
+
+
+def get_small_keyboard():
+    keyboard = [
+        ["Start"],
+        ["Назад", "Отмена"],
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        is_persistent=True
+    )
+
+
+WELCOME_TEXT = (
+    "Добро пожаловать в трекер тренировок.\n\n"
+    "Важно:\n"
+    "Отныне перед любой командой, выбором функции или упражнения сначала нажимай кнопку Start "
+    "и подожди примерно 1 минуту, чтобы бот точно проснулся.\n\n"
+    "Теперь выбери нужную функцию."
+)
+
+HELP_TEXT = (
+    "Помощь\n\n"
+    "Важно:\n"
+    "Перед любой командой, перед выбором функции и перед выбором упражнения сначала нажимай кнопку Start "
+    "и подожди примерно 1 минуту, чтобы бот точно проснулся после паузы.\n\n"
+    "Как пользоваться ботом:\n"
+    "1. Нажми Start\n"
+    "2. Подожди примерно 1 минуту\n"
+    "3. Нажми 'Старт тренировки' или 'Отслежение весов'\n"
+    "4. Выбери день тренировки\n"
+    "5. Выбери упражнение\n"
+    "6. Введи рабочий вес сообщением\n\n"
+    "Чтобы посмотреть старые веса, нажми 'Отслежение весов'."
+)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = "Добро пожаловать в трекер тренировок.\n\nЧто хочешь сделать?"
-    await update.message.reply_text(text, reply_markup=get_main_menu_keyboard())
+    await update.message.reply_text(WELCOME_TEXT, reply_markup=get_main_menu_keyboard())
     return MAIN_MENU
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "Как пользоваться ботом:\n\n"
-        "1. Нажми 'Старт тренировки'\n"
-        "2. Выбери день тренировки\n"
-        "3. Выбери упражнение\n"
-        "4. Введи рабочий вес сообщением\n\n"
-        "Чтобы смотреть старые веса, нажми 'Отслежение весов'."
+    await update.message.reply_text(HELP_TEXT, reply_markup=get_main_menu_keyboard())
+    return MAIN_MENU
+
+
+async def wake_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Бот проснулся.\n\nТеперь выбери нужную функцию.",
+        reply_markup=get_main_menu_keyboard()
     )
-    await update.message.reply_text(text, reply_markup=get_main_menu_keyboard())
     return MAIN_MENU
 
 
 async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
+    if text == "Start":
+        return await wake_to_main_menu(update, context)
+
     if text == "Старт тренировки":
-        await update.message.reply_text("Выбери день тренировки:", reply_markup=get_days_keyboard())
+        await update.message.reply_text(
+            "Выбери день тренировки:",
+            reply_markup=get_days_keyboard()
+        )
         return SELECT_DAY
 
-    elif text == "Отслежение весов":
+    if text == "Отслежение весов":
         await update.message.reply_text(
             "Выбери день, по которому хочешь посмотреть веса:",
             reply_markup=get_days_keyboard()
         )
         return TRACK_DAY
 
-    elif text == "Помощь":
+    if text == "Помощь":
         return await help_command(update, context)
 
-    elif text == "Отмена":
-        return await cancel(update, context)
-
-    else:
-        await update.message.reply_text("Выбери кнопку из меню.", reply_markup=get_main_menu_keyboard())
+    if text == "Отмена":
+        await update.message.reply_text(
+            "Действие отменено. Ты в главном меню.",
+            reply_markup=get_main_menu_keyboard()
+        )
         return MAIN_MENU
+
+    await update.message.reply_text(
+        "Сначала нажми Start, потом выбери нужную кнопку.",
+        reply_markup=get_main_menu_keyboard()
+    )
+    return MAIN_MENU
 
 
 async def select_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day_name = update.message.text
+
+    if day_name == "Start":
+        return await wake_to_main_menu(update, context)
 
     if day_name == "Назад":
         await update.message.reply_text("Главное меню:", reply_markup=get_main_menu_keyboard())
         return MAIN_MENU
 
     if day_name == "Отмена":
-        return await cancel(update, context)
+        await update.message.reply_text("Действие отменено. Ты в главном меню.", reply_markup=get_main_menu_keyboard())
+        return MAIN_MENU
 
     if day_name not in WORKOUTS:
         await update.message.reply_text("Выбери день кнопкой.", reply_markup=get_days_keyboard())
@@ -245,14 +307,18 @@ async def select_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE):
     exercise_name = update.message.text
     day_name = context.user_data.get("selected_day")
 
+    if exercise_name == "Start":
+        return await wake_to_main_menu(update, context)
+
     if exercise_name == "Назад":
         await update.message.reply_text("Выбери день тренировки:", reply_markup=get_days_keyboard())
         return SELECT_DAY
 
     if exercise_name == "Отмена":
-        return await cancel(update, context)
+        await update.message.reply_text("Действие отменено. Ты в главном меню.", reply_markup=get_main_menu_keyboard())
+        return MAIN_MENU
 
-    if not day_name or exercise_name not in WORKOUTS[day_name]:
+    if not day_name or exercise_name not in WORKOUTS.get(day_name, []):
         await update.message.reply_text("Выбери упражнение кнопкой.", reply_markup=get_exercises_keyboard(day_name))
         return SELECT_EXERCISE
 
@@ -269,7 +335,7 @@ async def select_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Упражнение: {exercise_name}{last_info}\n\n"
         "Теперь введи рабочий вес сообщением.\n"
         "Например: 60 кг или 3x10 по 50",
-        reply_markup=ReplyKeyboardMarkup([["Назад", "Отмена"]], resize_keyboard=True)
+        reply_markup=get_small_keyboard()
     )
     return ENTER_WEIGHT
 
@@ -277,19 +343,26 @@ async def select_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def enter_weight(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
+    if text == "Start":
+        return await wake_to_main_menu(update, context)
+
     if text == "Назад":
         day_name = context.user_data.get("selected_day")
         await update.message.reply_text("Выбери упражнение:", reply_markup=get_exercises_keyboard(day_name))
         return SELECT_EXERCISE
 
     if text == "Отмена":
-        return await cancel(update, context)
+        await update.message.reply_text("Действие отменено. Ты в главном меню.", reply_markup=get_main_menu_keyboard())
+        return MAIN_MENU
 
     day_name = context.user_data.get("selected_day")
     exercise_name = context.user_data.get("selected_exercise")
 
     if not day_name or not exercise_name:
-        await update.message.reply_text("Что-то сбилось. Вернись в главное меню.", reply_markup=get_main_menu_keyboard())
+        await update.message.reply_text(
+            "Что-то сбилось. Вернись в главное меню.",
+            reply_markup=get_main_menu_keyboard()
+        )
         return MAIN_MENU
 
     save_weight(
@@ -314,19 +387,22 @@ async def enter_weight(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def track_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day_name = update.message.text
 
+    if day_name == "Start":
+        return await wake_to_main_menu(update, context)
+
     if day_name == "Назад":
         await update.message.reply_text("Главное меню:", reply_markup=get_main_menu_keyboard())
         return MAIN_MENU
 
     if day_name == "Отмена":
-        return await cancel(update, context)
+        await update.message.reply_text("Действие отменено. Ты в главном меню.", reply_markup=get_main_menu_keyboard())
+        return MAIN_MENU
 
     if day_name not in WORKOUTS:
         await update.message.reply_text("Выбери день кнопкой.", reply_markup=get_days_keyboard())
         return TRACK_DAY
 
     context.user_data["track_day"] = day_name
-
     latest = get_last_weights_for_day(update.effective_user.id, day_name)
 
     if not latest:
@@ -354,14 +430,18 @@ async def track_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE):
     exercise_name = update.message.text
     day_name = context.user_data.get("track_day")
 
+    if exercise_name == "Start":
+        return await wake_to_main_menu(update, context)
+
     if exercise_name == "Назад":
         await update.message.reply_text("Выбери день:", reply_markup=get_days_keyboard())
         return TRACK_DAY
 
     if exercise_name == "Отмена":
-        return await cancel(update, context)
+        await update.message.reply_text("Действие отменено. Ты в главном меню.", reply_markup=get_main_menu_keyboard())
+        return MAIN_MENU
 
-    if not day_name or exercise_name not in WORKOUTS[day_name]:
+    if not day_name or exercise_name not in WORKOUTS.get(day_name, []):
         await update.message.reply_text("Выбери упражнение кнопкой.", reply_markup=get_exercises_keyboard(day_name))
         return TRACK_EXERCISE
 
@@ -382,18 +462,16 @@ async def track_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TRACK_EXERCISE
 
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Действие отменено. Ты в главном меню.", reply_markup=get_main_menu_keyboard())
-    return MAIN_MENU
-
-
 def main():
     init_db()
 
     app = ApplicationBuilder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
+        entry_points=[
+            CommandHandler("start", start),
+            MessageHandler(filters.Regex("^Start$"), wake_to_main_menu),
+        ],
         states={
             MAIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu_handler)],
             SELECT_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_day)],
@@ -404,7 +482,8 @@ def main():
         },
         fallbacks=[
             CommandHandler("start", start),
-            MessageHandler(filters.Regex("^Отмена$"), cancel),
+            MessageHandler(filters.Regex("^Start$"), wake_to_main_menu),
+            MessageHandler(filters.Regex("^Отмена$"), main_menu_handler),
         ],
         allow_reentry=True,
     )
